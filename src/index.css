@@ -1,0 +1,53 @@
+@import "@fontsource-variable/outfit";
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Outfit Variable', sans-serif;
+
+  /* OKLCH neutral palette — no pure #000 or #fff */
+  --color-surface-base:    oklch(8%  0.008 270);
+  --color-surface-raised:  oklch(12% 0.010 270);
+  --color-surface-overlay: oklch(16% 0.012 270);
+  --color-border-subtle:   oklch(22% 0.012 270);
+  --color-text-primary:    oklch(95% 0.005 270);
+  --color-text-secondary:  oklch(62% 0.012 270);
+  --color-text-muted:      oklch(40% 0.010 270);
+
+  /* Single warm amber accent */
+  --color-accent:          oklch(78% 0.18 55);
+  --color-accent-hover:    oklch(82% 0.18 55);
+  --color-accent-muted:    oklch(78% 0.08 55 / 15%);
+
+  /* Animation tokens */
+  --ease-out-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--color-surface-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-page-enter {
+  animation: page-enter 220ms var(--ease-out-smooth) both;
+}
