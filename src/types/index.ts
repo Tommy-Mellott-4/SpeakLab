@@ -5,6 +5,7 @@ export const STORAGE_KEYS = {
   API_KEY: 'speaklab.apiKey',
   SESSIONS: 'speaklab.sessions',
   PREFERENCES: 'speaklab.preferences',
+  CURRENT_CHALLENGE: 'speaklab.currentChallenge',
 } as const
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]
@@ -32,7 +33,6 @@ export type ChallengeCategory =
 
 export type ChallengeDifficulty = 'foundation' | 'competency' | 'mastery'
 
-/** Stub: fully defined in Phase 2 */
 export interface Challenge {
   id: string
   category: ChallengeCategory
@@ -40,6 +40,11 @@ export interface Challenge {
   context: string
   timeConstraintSeconds: number
   successCriteria: string[]
+}
+
+/** Challenge with generation metadata — persisted to localStorage for Phase 3 */
+export interface StoredChallenge extends Challenge {
+  generatedAt: string
 }
 
 // ─── Sessions (Phase 4/5 stubs) ───────────────────────────────────────────────

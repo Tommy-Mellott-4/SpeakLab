@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.app.json && vite build",
@@ -11,6 +13,7 @@
     "typecheck": "tsc -p tsconfig.app.json --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.98.0",
     "@fontsource-variable/outfit": "^5.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
