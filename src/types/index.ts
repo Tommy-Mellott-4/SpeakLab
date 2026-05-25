@@ -6,6 +6,7 @@ export const STORAGE_KEYS = {
   SESSIONS: 'speaklab.sessions',
   PREFERENCES: 'speaklab.preferences',
   CURRENT_CHALLENGE: 'speaklab.currentChallenge',
+  CURRENT_SESSION_DRAFT: 'speaklab.currentSessionDraft',
 } as const
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]
@@ -47,9 +48,19 @@ export interface StoredChallenge extends Challenge {
   generatedAt: string
 }
 
-// ─── Sessions (Phase 4/5 stubs) ───────────────────────────────────────────────
+// ─── Sessions (Phase 3+) ─────────────────────────────────────────────────────
 
-/** Stub: fully defined in Phase 4 */
+/** In-progress session state persisted between page reloads */
+export interface SessionDraft {
+  challengeId: string
+  startedAt: string
+  transcript: string
+  fillerCounts: Record<string, number>
+  wordCount: number
+  durationSeconds: number
+}
+
+/** Completed session record saved to history */
 export interface SessionRecord {
   id: string
   createdAt: string
