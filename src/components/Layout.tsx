@@ -1,14 +1,7 @@
-import { Navigate, Outlet } from 'react-router-dom'
-import { useApiKey } from '@/hooks/useApiKey'
+import { Outlet } from 'react-router-dom'
 import NavBar from '@/components/NavBar'
 
 export default function Layout() {
-  const { hasValidKey } = useApiKey()
-
-  if (!hasValidKey) {
-    return <Navigate to="/onboarding" replace />
-  }
-
   return (
     <div
       className="min-h-[100dvh] flex flex-col"

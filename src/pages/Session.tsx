@@ -1,11 +1,8 @@
-import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSpeechSession } from '@/hooks/useSpeechSession'
-import { useApiKey } from '@/hooks/useApiKey'
 import { storageGet } from '@/utils/storage'
-import { scoreSession } from '@/utils/claude'
 import { STORAGE_KEYS } from '@/types'
-import type { StoredChallenge, SessionScore } from '@/types'
+import type { StoredChallenge } from '@/types'
 
 const CATEGORY_LABELS: Record<string, string> = {
   'formal-presentation': 'Formal Presentation',
@@ -19,47 +16,15 @@ const DIFFICULTY_LABELS: Record<string, string> = {
   mastery: 'Mastery',
 }
 
-const SCORE_DIMS: { key: keyof Omit<SessionScore, 'rationale' | 'priorityGaps'>; label: string }[] =
-  [
-    { key: 'structure', label: 'Structure' },
-    { key: 'clarity', label: 'Clarity' },
-    { key: 'economy', label: 'Economy' },
-    { key: 'confidenceSignals', label: 'Confidence' },
-    { key: 'engagement', label: 'Engagement' },
-  ]
-
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-function ScoreBar({ value }: { value: number }) {
-  const pct = Math.round((value / 10) * 100)
-  const color =
-    value >= 8
-      ? 'var(--color-accent)'
-      : value >= 5
-        ? 'oklch(70% 0.15 200)'
-        : 'oklch(60% 0.18 25)'
-  return (
-    <div
-      className="h-1.5 rounded-full w-full overflow-hidden"
-      style={{ backgroundColor: 'var(--color-border-subtle)' }}
-    >
-      <div
-        className="h-full rounded-full transition-all duration-700"
-        style={{ width: `${pct}%`, backgroundColor: color }}
-      />
-    </div>
-  )
-}
-
 export default function Session() {
   const navigate = useNavigate()
-  const { apiKey } = useApiKey()
   const challenge = storageGet<StoredChallenge>(STORAGE_KEYS.CURRENT_CHALLENGE)
-
   const {
     unsupported,
     phase,
@@ -73,42 +38,6 @@ export default function Session() {
     reset,
     saveAndExit,
   } = useSpeechSession()
-
-  const [scoringState, setScoringState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
-  const [score, setScore] = useState<SessionScore | null>(null)
-  const [scoreError, setScoreError] = useState<string | null>(null)
-
-  const handleScore = useCallback(async () => {
-    if (!apiKey || !challenge) return
-    setScoringState('loading')
-    setScoreError(null)
-    try {
-      const result = await scoreSession(apiKey, challenge, transcript, {
-        wordCount,
-        durationSeconds,
-        wpm,
-        fillerCounts,
-      })
-      setScore(result)
-      setScoringState('done')
-    } catch (err) {
-      setScoreError(err instanceof Error ? err.message : 'Scoring failed. Try again.')
-      setScoringState('error')
-    }
-  }, [apiKey, challenge, transcript, wordCount, durationSeconds, wpm, fillerCounts])
-
-  const handleSaveAndExit = useCallback(() => {
-    saveAndExit(score ?? undefined)
-    setScore(null)
-    setScoringState('idle')
-  }, [saveAndExit, score])
-
-  const handleReset = useCallback(() => {
-    reset()
-    setScore(null)
-    setScoringState('idle')
-    setScoreError(null)
-  }, [reset])
 
   const activeFillers = Object.entries(fillerCounts).filter(([, count]) => count > 0)
   const totalFillers = activeFillers.reduce((sum, [, c]) => sum + c, 0)
@@ -313,7 +242,7 @@ export default function Session() {
         </div>
       )}
 
-      {/* Live transcript */}
+      {/* Transcript */}
       <div
         className="rounded-xl p-4 flex flex-col gap-2"
         style={{
@@ -335,85 +264,6 @@ export default function Session() {
         </div>
       </div>
 
-      {/* Score card — shown after scoring */}
-      {scoringState === 'done' && score && (
-        <div
-          className="rounded-xl p-5 flex flex-col gap-5"
-          style={{
-            backgroundColor: 'var(--color-surface-raised)',
-            border: '1px solid var(--color-border-subtle)',
-          }}
-        >
-          <span
-            className="text-xs font-medium uppercase tracking-wider"
-            style={{ color: 'var(--color-text-muted)' }}
-          >
-            AI Score
-          </span>
-
-          <div className="flex flex-col gap-4">
-            {SCORE_DIMS.map(({ key, label }) => (
-              <div key={key} className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                    {label}
-                  </span>
-                  <span
-                    className="text-sm font-semibold tabular-nums"
-                    style={{ color: 'var(--color-text-primary)' }}
-                  >
-                    {score[key]}/10
-                  </span>
-                </div>
-                <ScoreBar value={score[key]} />
-                {score.rationale[key] && (
-                  <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
-                    {score.rationale[key]}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {score.priorityGaps.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <span
-                className="text-xs font-medium uppercase tracking-wider"
-                style={{ color: 'var(--color-text-muted)' }}
-              >
-                Priority gaps
-              </span>
-              <ul className="flex flex-col gap-1.5">
-                {score.priorityGaps.map((gap, i) => (
-                  <li
-                    key={i}
-                    className="flex gap-2 text-sm"
-                    style={{ color: 'var(--color-text-secondary)' }}
-                  >
-                    <span style={{ color: 'oklch(60% 0.18 25)' }}>↑</span>
-                    {gap}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Scoring error */}
-      {scoringState === 'error' && scoreError && (
-        <p
-          className="text-sm px-4 py-3 rounded-lg"
-          style={{
-            backgroundColor: 'oklch(20% 0.05 25)',
-            color: 'oklch(70% 0.15 25)',
-            border: '1px solid oklch(30% 0.08 25)',
-          }}
-        >
-          {scoreError}
-        </p>
-      )}
-
       {/* Actions */}
       <div className="flex items-center gap-3 flex-wrap">
         {phase === 'recording' && (
@@ -428,37 +278,19 @@ export default function Session() {
         )}
 
         {phase === 'done' && (
-          <>
-            {scoringState !== 'done' && (
-              <button
-                type="button"
-                onClick={handleScore}
-                disabled={scoringState === 'loading'}
-                className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{
-                  backgroundColor: 'var(--color-surface-raised)',
-                  color: 'var(--color-text-primary)',
-                  border: '1px solid var(--color-border-subtle)',
-                }}
-              >
-                {scoringState === 'loading' ? 'Scoring…' : scoringState === 'error' ? 'Retry score' : 'Score with AI'}
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={handleSaveAndExit}
-              className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 active:scale-[0.97]"
-              style={{ backgroundColor: 'var(--color-accent)', color: 'oklch(10% 0.01 270)' }}
-            >
-              Save &amp; Exit
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={() => saveAndExit()}
+            className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 active:scale-[0.97]"
+            style={{ backgroundColor: 'var(--color-accent)', color: 'oklch(10% 0.01 270)' }}
+          >
+            Save &amp; Exit
+          </button>
         )}
 
         <button
           type="button"
-          onClick={handleReset}
+          onClick={reset}
           className="text-xs font-medium transition-opacity duration-150 active:scale-[0.97]"
           style={{ color: 'var(--color-text-muted)' }}
         >
