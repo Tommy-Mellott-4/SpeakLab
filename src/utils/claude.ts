@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { ChallengeCategory, ChallengeDifficulty, Challenge } from '@/types'
+import type { ChallengeCategory, ChallengeDifficulty, Challenge, SessionScore, StoredChallenge } from '@/types'
 
 const CATEGORY_LABELS: Record<ChallengeCategory, string> = {
   'formal-presentation': 'Formal Presentation',
@@ -28,6 +28,38 @@ JSON schema:
   "context": "string — the full scenario description (2–4 sentences)",
   "timeConstraintSeconds": number,
   "successCriteria": ["string", "string", "string"]  // exactly 3 items
+}`
+
+const SCORING_SYSTEM_PROMPT = `You are SpeakLab's speech coach. Analyze the provided transcript and session data against the challenge context, then score the speaker across five dimensions.
+
+Scoring dimensions (each 1–10):
+- structure: logical flow, clear opening/body/close, signposting
+- clarity: word choice precision, sentence simplicity, absence of vague language
+- economy: ratio of meaningful content to total words; penalize padding and repetition
+- confidenceSignals: assertive language, minimal hedging ("I think", "maybe"), steady pacing implied by transcript
+- engagement: concrete examples, vivid language, audience awareness
+
+Rules:
+- Be honest and calibrated. A 7 should feel earned.
+- rationale: one crisp sentence per dimension explaining the score.
+- priorityGaps: exactly 2–3 specific, actionable things the speaker should work on next.
+- Respond ONLY with valid JSON — no markdown, no commentary.
+
+JSON schema:
+{
+  "structure": number,
+  "clarity": number,
+  "economy": number,
+  "confidenceSignals": number,
+  "engagement": number,
+  "rationale": {
+    "structure": "string",
+    "clarity": "string",
+    "economy": "string",
+    "confidenceSignals": "string",
+    "engagement": "string"
+  },
+  "priorityGaps": ["string", "string"]
 }`
 
 function makeClient(apiKey: string): Anthropic {
@@ -91,4 +123,76 @@ Category context:
     timeConstraintSeconds: Math.min(Math.max(parsed.timeConstraintSeconds, range.min), range.max),
     successCriteria: parsed.successCriteria.slice(0, 3),
   }
+}
+
+interface SessionStats {
+  wordCount: number
+  durationSeconds: number
+  wpm: number
+  fillerCounts: Record<string, number>
+}
+
+export async function scoreSession(
+  apiKey: string,
+  challenge: StoredChallenge,
+  transcript: string,
+  stats: SessionStats,
+): Promise<SessionScore> {
+  const client = makeClient(apiKey)
+
+  const fillerSummary = Object.entries(stats.fillerCounts)
+    .filter(([, c]) => c > 0)
+    .sort(([, a], [, b]) => b - a)
+    .map(([w, c]) => `${w} (×${c})`)
+    .join(', ')
+
+  const userPrompt = `CHALLENGE
+Category: ${CATEGORY_LABELS[challenge.category]}
+Difficulty: ${challenge.difficulty}
+Scenario: ${challenge.context}
+Success criteria:
+${challenge.successCriteria.map((c, i) => `${i + 1}. ${c}`).join('\n')}
+
+SESSION STATS
+Duration: ${Math.floor(stats.durationSeconds / 60)}m ${stats.durationSeconds % 60}s
+Word count: ${stats.wordCount}
+WPM: ${stats.wpm}
+Filler words detected: ${fillerSummary || 'none'}
+
+TRANSCRIPT
+${transcript || '(no transcript recorded)'}
+
+Score this session.`
+
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1024,
+    system: [
+      {
+        type: 'text',
+        text: SCORING_SYSTEM_PROMPT,
+        cache_control: { type: 'ephemeral' },
+      },
+    ],
+    messages: [{ role: 'user', content: userPrompt }],
+  })
+
+  const textBlock = response.content.find((b) => b.type === 'text')
+  if (!textBlock || textBlock.type !== 'text') {
+    throw new Error('No text content in Claude response')
+  }
+
+  let parsed: SessionScore
+  try {
+    parsed = JSON.parse(textBlock.text)
+  } catch {
+    throw new Error('Claude returned invalid JSON')
+  }
+
+  const dims = ['structure', 'clarity', 'economy', 'confidenceSignals', 'engagement'] as const
+  for (const dim of dims) {
+    if (typeof parsed[dim] !== 'number') throw new Error(`Missing score for ${dim}`)
+  }
+
+  return parsed
 }

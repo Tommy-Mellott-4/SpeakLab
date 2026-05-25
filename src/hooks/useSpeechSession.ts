@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { supportsWebSpeech } from '@/utils/browser'
 import { storageGet, storageSet, storageRemove } from '@/utils/storage'
 import { STORAGE_KEYS } from '@/types'
-import type { SessionDraft } from '@/types'
+import type { SessionDraft, SessionScore } from '@/types'
 
 const FILLERS = ['you know', 'um', 'uh', 'like', 'basically', 'literally', 'right', 'so']
 
@@ -44,7 +44,7 @@ interface UseSpeechSessionReturn {
   start: (challengeId: string) => void
   stop: () => void
   reset: () => void
-  saveAndExit: () => void
+  saveAndExit: (score?: SessionScore) => void
 }
 
 export function useSpeechSession(): UseSpeechSessionReturn {
@@ -208,13 +208,14 @@ export function useSpeechSession(): UseSpeechSessionReturn {
     setDurationSeconds(0)
   }, [])
 
-  const saveAndExit = useCallback(() => {
+  const saveAndExit = useCallback((score?: SessionScore) => {
     const sessions = storageGet<import('@/types').SessionRecord[]>(STORAGE_KEYS.SESSIONS) ?? []
     const record: import('@/types').SessionRecord = {
       id: crypto.randomUUID(),
       createdAt: startedAtRef.current || new Date().toISOString(),
       challengeId: challengeIdRef.current,
       transcript: finalTranscriptRef.current,
+      ...(score ? { score } : {}),
     }
     storageSet(STORAGE_KEYS.SESSIONS, [...sessions, record])
     storageRemove(STORAGE_KEYS.CURRENT_SESSION_DRAFT)
