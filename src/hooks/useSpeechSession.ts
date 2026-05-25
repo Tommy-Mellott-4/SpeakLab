@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { supportsWebSpeech } from '@/utils/browser'
 import { storageGet, storageSet, storageRemove } from '@/utils/storage'
 import { STORAGE_KEYS } from '@/types'
-import type { SessionDraft, SessionScore } from '@/types'
+import type { SessionDraft, SessionScore, StoredChallenge } from '@/types'
 
 const FILLERS = ['you know', 'um', 'uh', 'like', 'basically', 'literally', 'right', 'so']
 
@@ -41,7 +41,7 @@ interface UseSpeechSessionReturn {
   wordCount: number
   durationSeconds: number
   wpm: number
-  start: (challengeId: string) => void
+  start: (challenge: StoredChallenge) => void
   stop: () => void
   reset: () => void
   saveAndExit: (score?: SessionScore) => void
@@ -64,10 +64,13 @@ export function useSpeechSession(): UseSpeechSessionReturn {
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const challengeIdRef = useRef<string>(savedDraft?.challengeId ?? '')
+  const challengeSnapshotRef = useRef<StoredChallenge | null>(null)
   const startedAtRef = useRef<string>(savedDraft?.startedAt ?? '')
   // Accumulate final transcript segments separately to avoid double-counting
   const finalTranscriptRef = useRef<string>(savedDraft?.transcript ?? '')
   const fillerCountsRef = useRef<Record<string, number>>(savedDraft?.fillerCounts ?? {})
+  const wordCountRef = useRef<number>(savedDraft?.wordCount ?? 0)
+  const durationRef = useRef<number>(savedDraft?.durationSeconds ?? 0)
 
   const wpm = durationSeconds > 0 ? Math.round((wordCount / durationSeconds) * 60) : 0
 
@@ -103,13 +106,16 @@ export function useSpeechSession(): UseSpeechSessionReturn {
   }, [])
 
   const start = useCallback(
-    (challengeId: string) => {
+    (challenge: StoredChallenge) => {
       if (unsupported) return
 
       // Reset state
       finalTranscriptRef.current = ''
       fillerCountsRef.current = {}
-      challengeIdRef.current = challengeId
+      wordCountRef.current = 0
+      durationRef.current = 0
+      challengeIdRef.current = challenge.id
+      challengeSnapshotRef.current = challenge
       startedAtRef.current = new Date().toISOString()
 
       setTranscript('')
@@ -137,6 +143,7 @@ export function useSpeechSession(): UseSpeechSessionReturn {
 
       timerRef.current = setInterval(() => {
         elapsed += 1
+        durationRef.current = elapsed
         setDurationSeconds(elapsed)
       }, 1000)
 
@@ -162,6 +169,7 @@ export function useSpeechSession(): UseSpeechSessionReturn {
           .split(/\s+/)
           .filter((w) => w.length > 0).length
 
+        wordCountRef.current = words
         setTranscript(displayTranscript)
         setFillerCounts({ ...fillerCountsRef.current })
         setWordCount(words)
@@ -200,6 +208,9 @@ export function useSpeechSession(): UseSpeechSessionReturn {
     }
     finalTranscriptRef.current = ''
     fillerCountsRef.current = {}
+    wordCountRef.current = 0
+    durationRef.current = 0
+    challengeSnapshotRef.current = null
     storageRemove(STORAGE_KEYS.CURRENT_SESSION_DRAFT)
     setPhase('idle')
     setTranscript('')
@@ -210,11 +221,19 @@ export function useSpeechSession(): UseSpeechSessionReturn {
 
   const saveAndExit = useCallback((score?: SessionScore) => {
     const sessions = storageGet<import('@/types').SessionRecord[]>(STORAGE_KEYS.SESSIONS) ?? []
+    const wpm = durationRef.current > 0
+      ? Math.round((wordCountRef.current / durationRef.current) * 60)
+      : 0
     const record: import('@/types').SessionRecord = {
       id: crypto.randomUUID(),
       createdAt: startedAtRef.current || new Date().toISOString(),
       challengeId: challengeIdRef.current,
+      ...(challengeSnapshotRef.current ? { challengeSnapshot: challengeSnapshotRef.current } : {}),
       transcript: finalTranscriptRef.current,
+      wordCount: wordCountRef.current,
+      durationSeconds: durationRef.current,
+      wpm,
+      fillerCounts: { ...fillerCountsRef.current },
       ...(score ? { score } : {}),
     }
     storageSet(STORAGE_KEYS.SESSIONS, [...sessions, record])

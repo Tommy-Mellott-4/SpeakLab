@@ -65,7 +65,12 @@ export interface SessionRecord {
   id: string
   createdAt: string
   challengeId: string
+  challengeSnapshot?: StoredChallenge
   transcript: string
+  wordCount?: number
+  durationSeconds?: number
+  wpm?: number
+  fillerCounts?: Record<string, number>
   score?: SessionScore
 }
 

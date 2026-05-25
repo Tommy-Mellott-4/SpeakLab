@@ -218,7 +218,7 @@ export default function Session() {
         <button
           type="button"
           disabled={unsupported}
-          onClick={() => start(challenge.id)}
+          onClick={() => start(challenge)}
           className="self-start px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-150 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ backgroundColor: 'var(--color-accent)', color: 'oklch(10% 0.01 270)' }}
         >
